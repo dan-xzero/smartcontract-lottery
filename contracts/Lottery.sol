@@ -3,10 +3,13 @@ pragma solidity ^0.6.6;
 
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@chainlink/contracts/src/v0.6/VRFConsumerBase.sol";
 
-contract Lottery is Ownable {
+contract Lottery is VRFConsumerBase, Ownable {
     address payable[] public players;
     uint256 public usdEntryFee;
+    uint256 public randomness;
+    address payable public recentWinners;
     AggregatorV3Interface internal ethUsdPriceFeed;
     enum LOTTERY_STATE {
         OPEN,
@@ -14,15 +17,25 @@ contract Lottery is Ownable {
         CALCULATING_WINNER
     }
     LOTTERY_STATE public lottery_state;
+    uint256 public fee;
+    bytes32 public keyhash;
 
     //0
     //1
     //2
 
-    constructor(address _priceFeedAddress) public {
+    constructor(
+        address _priceFeedAddress,
+        address _vrfCoordinator,
+        address _link,
+        uint256 _fee,
+        bytes32 _keyhash
+    ) public VRFConsumerBase(_vrfCoordinator, _link) {
         usdEntryFee = 50 * (10 ** 18);
         ethUsdPriceFeed = AggregatorV3Interface(_priceFeedAddress);
         lottery_state = LOTTERY_STATE.CLOSED;
+        fee = _fee;
+        keyhash = _keyhash;
         //lottery_state=1;
     }
 
@@ -62,5 +75,25 @@ contract Lottery is Ownable {
         //         )
         //     )
         // ) % players.length;
+        lottery_state = LOTTERY_STATE.CALCULATING_WINNER;
+        bytes32 requestId = requestRandomness(keyhash, fee);
+    }
+
+    function fulfillRandomness(
+        bytes32 _requestId,
+        uint256 _randomness
+    ) internal override {
+        require(
+            lottery_state == LOTTERY_STATE.CALCULATING_WINNER,
+            "you aren't there yet!"
+        );
+        require(_randomness > 0, "Random not found");
+        uint256 indexOfWinners = _randomness % players.length;
+        recentWinners = players[indexOfWinners];
+        recentWinners.transfer(address(this).balance);
+        //reset lottery
+        players = new address payable[](0);
+        lottery_state = LOTTERY_STATE.CLOSED;
+        randomness = _randomness;
     }
 }
