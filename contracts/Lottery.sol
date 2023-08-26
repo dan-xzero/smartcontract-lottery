@@ -9,7 +9,7 @@ contract Lottery is VRFConsumerBase, Ownable {
     address payable[] public players;
     uint256 public usdEntryFee;
     uint256 public randomness;
-    address payable public recentWinners;
+    address payable public recentWinner;
     AggregatorV3Interface internal ethUsdPriceFeed;
     enum LOTTERY_STATE {
         OPEN,
@@ -89,8 +89,8 @@ contract Lottery is VRFConsumerBase, Ownable {
         );
         require(_randomness > 0, "Random not found");
         uint256 indexOfWinners = _randomness % players.length;
-        recentWinners = players[indexOfWinners];
-        recentWinners.transfer(address(this).balance);
+        recentWinner = players[indexOfWinners];
+        recentWinner.transfer(address(this).balance);
         //reset lottery
         players = new address payable[](0);
         lottery_state = LOTTERY_STATE.CLOSED;
